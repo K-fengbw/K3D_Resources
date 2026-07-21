@@ -1,0 +1,46 @@
+name: Build D5 Animation Exporter
+
+on:
+  push:
+    branches:
+      - d5-animation-exporter-build
+    paths:
+      - "D5AnimationExporter/**"
+      - ".github/workflows/build-d5-animation-exporter.yml"
+  pull_request:
+    paths:
+      - "D5AnimationExporter/**"
+      - ".github/workflows/build-d5-animation-exporter.yml"
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Decode source archive
+        shell: powershell
+        run: |
+          $raw = Get-Content "D5AnimationExporter/source.b64" -Raw
+          $clean = $raw -replace '[^A-Za-z0-9+/=]', ''
+          Write-Host "Base64 characters: $($clean.Length)"
+          $bytes = [Convert]::FromBase64String($clean)
+          [IO.File]::WriteAllBytes("D5AnimationExporter/source.zip", $bytes)
+          Expand-Archive "D5AnimationExporter/source.zip" "D5AnimationExporter/unpacked" -Force
+
+      - name: Build GHA and Yak
+        shell: powershell
+        working-directory: D5AnimationExporter/unpacked
+        run: ./build-release.ps1
+
+      - name: Upload distributions
+        uses: actions/upload-artifact@v4
+        with:
+          name: D5AnimationExporter-1.0.0
+          path: D5AnimationExporter/unpacked/dist/*
+          if-no-files-found: error
